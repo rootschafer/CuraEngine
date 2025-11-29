@@ -75,3 +75,8 @@ conanbuildinfo.txt
 conaninfo.txt
 graph_info.json
 build/*
+.emscripten_cache
+link_debug.log
+build.log
+CuraEngine.js
+CuraEngine.wasm

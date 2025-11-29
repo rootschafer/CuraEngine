@@ -4,8 +4,8 @@
 cmake_policy(SET CMP0091 NEW)  # For MSVC flags, will be ignored on non-Windows OS's
 cmake_minimum_required(VERSION 3.20)
 project(CuraEngine)
-find_package(standardprojectsettings REQUIRED)  # imports the cmake module https://github.com/Ultimaker/conan-ultimaker-index/recipes/standardprojectsettings
-AssureOutOfSourceBuilds()
+# find_package(standardprojectsettings REQUIRED)  # imports the cmake module https://github.com/Ultimaker/conan-ultimaker-index/recipes/standardprojectsettings
+# AssureOutOfSourceBuilds()
 
 option(ENABLE_ARCUS "Enable support for ARCUS" ON)
 option(ENABLE_TESTING "Build with unit tests" OFF)
@@ -217,7 +217,7 @@ target_compile_definitions(_CuraEngine
         $<$<CONFIG:Debug>:DEBUG>
 )
 
-enable_sanitizers(_CuraEngine)
+# enable_sanitizers(_CuraEngine)
 
 if (${EXTENSIVE_WARNINGS})
     set_project_warnings(_CuraEngine)
@@ -235,7 +235,7 @@ find_package(Boost REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(fmt REQUIRED)
 find_package(range-v3 REQUIRED)
-find_package(scripta REQUIRED)
+# find_package(scripta REQUIRED)
 find_package(PNG REQUIRED)
 if (NOT EMSCRIPTEN)
     find_package(TBB REQUIRED)
@@ -251,7 +251,7 @@ endif ()
 
 target_link_libraries(_CuraEngine
         PUBLIC
-        spdlog::spdlog
+        spdlog::spdlog_header_only
         range-v3::range-v3
         fmt::fmt
         clipper::clipper
@@ -259,7 +259,7 @@ target_link_libraries(_CuraEngine
         rapidjson
         stb::stb
         boost::boost
-        scripta::scripta
+        # scripta::scripta
         PNG::PNG
         $<$<NOT:$<BOOL:${EMSCRIPTEN}>>:onetbb::onetbb>
         $<$<TARGET_EXISTS:semver::semver>:semver::semver>
@@ -308,7 +308,7 @@ if (EMSCRIPTEN)
             "SHELL:-sALLOW_MEMORY_GROWTH=1"
             "SHELL:-sEXPORT_ES6=1"
             "SHELL:-sMODULARIZE=1"
-            "SHELL:-sSINGLE_FILE=1"
+            # "SHELL:-sSINGLE_FILE=1"
             "SHELL:-sENVIRONMENT=web"
             "SHELL:-sERROR_ON_UNDEFINED_SYMBOLS=0"
             "SHELL:-sWASM_BIGINT=1"
@@ -319,7 +319,7 @@ if (EMSCRIPTEN)
             $<$<CONFIG:Debug>:SHELL:-g3>
             $<$<CONFIG:Debug>:SHELL:-gsource-map>
             "SHELL:-lembind"
-            "SHELL:--emit-tsd CuraEngine.d.ts"
+            # "SHELL:--emit-tsd CuraEngine.d.ts"
     )
 endif ()
 

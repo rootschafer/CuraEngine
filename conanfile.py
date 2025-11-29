@@ -12,8 +12,31 @@ from conan.tools.scm import Version, Git
 
 required_conan_version = ">=2.7.0"
 
+# Mock SentryLibrary locally to avoid external dependency
+class SentryLibrary:
+    options = {
+        "enable_sentry": [True, False],
+        "sentry_url": ["ANY"],
+        "sentry_environment": ["ANY"],
+    }
+    default_options = {
+        "enable_sentry": False,
+        "sentry_url": "",
+        "sentry_environment": "",
+    }
 
-class CuraEngineConan(ConanFile):
+    def setup_cmake_toolchain_sentry(self, tc):
+        if self.options.enable_sentry:
+            tc.variables["ENABLE_SENTRY"] = True
+            tc.variables["SENTRY_URL"] = str(self.options.sentry_url)
+            tc.variables["SENTRY_ENVIRONMENT"] = str(self.options.sentry_environment)
+        else:
+            tc.variables["ENABLE_SENTRY"] = False
+
+    def send_sentry_debug_files(self, binary_basename):
+        pass
+
+class CuraEngineConan(ConanFile, SentryLibrary):
     name = "curaengine"
     license = "AGPL-3.0"
     author = "UltiMaker"
@@ -23,8 +46,8 @@ class CuraEngineConan(ConanFile):
     exports = "LICENSE*"
     settings = "os", "compiler", "build_type", "arch"
     package_type = "application"
-    python_requires = "sentrylibrary/1.0.0", "npmpackage/[>=1.0.0]"
-    python_requires_extend = "sentrylibrary.SentryLibrary"
+    # python_requires = "sentrylibrary/1.0.0", "npmpackage/[>=1.0.0]"
+    # python_requires_extend = "sentrylibrary.SentryLibrary"
 
     options = {
         "enable_arcus": [True, False],
@@ -54,16 +77,20 @@ class CuraEngineConan(ConanFile):
         }
 
     def init(self):
-        base = self.python_requires["sentrylibrary"].module.SentryLibrary
+        # base = self.python_requires["sentrylibrary"].module.SentryLibrary
+        base = SentryLibrary
         self.options.update(base.options, base.default_options)
 
     def set_version(self):
         if not self.version:
-            self.version = self.conan_data["version"]
+            self.version = self.conan_data.get("version", "0.0.0")
 
     def export(self):
         git = Git(self)
-        update_conandata(self, {"version": self.version, "commit": git.get_commit()})
+        try:
+            update_conandata(self, {"version": self.version, "commit": git.get_commit()})
+        except:
+            pass
 
     def export_sources(self):
         copy(self, "CMakeLists.txt", self.recipe_folder, self.export_sources_folder)
@@ -81,14 +108,12 @@ class CuraEngineConan(ConanFile):
         copy(self, "*", os.path.join(self.recipe_folder, "tests"), os.path.join(self.export_sources_folder, "tests"))
 
     def config_options(self):
-        super().config_options()
-
+        # super().config_options()
         if not self.options.enable_plugins:
             del self.options.enable_remote_plugins
 
     def configure(self):
-        super().configure()
-
+        # super().configure()
         if self.options.enable_arcus or self.options.enable_plugins:
             self.options["protobuf"].shared = False
         if self.options.enable_arcus:
@@ -96,10 +121,13 @@ class CuraEngineConan(ConanFile):
         # Force all libraries to be static for Emscripten builds
         if self.settings.os == "Emscripten":
             self.options["*"].shared = False
+            self.options["spdlog"].header_only = True
+        
+        # Try header-only boost to avoid compilation crashes
+        self.options["boost"].header_only = True
 
     def validate(self):
-        super().validate()
-
+        # super().validate()
         if self.settings.compiler.get_safe("cppstd"):
             check_min_cppstd(self, 20)
         check_min_vs(self, 191)
@@ -110,7 +138,7 @@ class CuraEngineConan(ConanFile):
                     f"{self.ref} requires C++{self._min_cppstd}, which your compiler does not support.")
 
     def build_requirements(self):
-        self.test_requires("standardprojectsettings/[>=0.2.0]")
+        # self.tool_requires("standardprojectsettings/[>=0.2.0]")
         if not self.conf.get("tools.build:skip_test", False, check_type=bool):
             self.test_requires("gtest/1.14.0")
         if self.options.enable_benchmarks:
@@ -118,24 +146,32 @@ class CuraEngineConan(ConanFile):
             self.test_requires("docopt.cpp/0.6.3")
 
     def requirements(self):
-        super().requirements()
-
-        for req in self.conan_data["requirements"]:
-            # Skip OneTBB for Emscripten builds (single-threaded)
-            if req.startswith("onetbb/") and self.settings.arch == "wasm" and self.settings.os == "Emscripten":
-                continue
-            self.requires(req)
-        if self.options.enable_arcus:
+        # super().requirements()
+        if self.conan_data and "requirements" in self.conan_data:
+            for req in self.conan_data["requirements"]:
+                # Skip OneTBB for Emscripten builds (single-threaded)
+                if req.startswith("onetbb/") and self.settings.arch == "wasm" and self.settings.os == "Emscripten":
+                    continue
+                # Skip scripta as we are mocking it
+                if req.startswith("scripta/"):
+                    continue
+                self.requires(req)
+        
+        if self.options.enable_arcus and self.conan_data and "requirements_arcus" in self.conan_data:
             for req in self.conan_data["requirements_arcus"]:
                 self.requires(req)
+        
         if self.options.enable_plugins:
             self.requires("neargye-semver/0.3.0")
-            for req in self.conan_data["requirements_plugins"]:
-                self.requires(req)
-        if self.options.with_cura_resources:
+            if self.conan_data and "requirements_plugins" in self.conan_data:
+                for req in self.conan_data["requirements_plugins"]:
+                    self.requires(req)
+        
+        if self.options.with_cura_resources and self.conan_data and "requirements_cura_resources" in self.conan_data:
             for req in self.conan_data["requirements_cura_resources"]:
                 self.requires(req)
-        self.requires("clipper/6.4.2@ultimaker/stable")
+        
+        self.requires("clipper/6.4.2")
         self.requires("boost/1.86.0")
         self.requires("rapidjson/cci.20230929")
         self.requires("stb/cci.20230920")
@@ -143,7 +179,8 @@ class CuraEngineConan(ConanFile):
         self.requires("fmt/11.1.3")
         self.requires("range-v3/0.12.0")
         self.requires("zlib/1.3.1")
-        self.requires("mapbox-wagyu/0.5.0@ultimaker/stable")
+        self.requires("mapbox-wagyu/0.5.0")
+        # Removed explicit standardprojectsettings from here
 
     def generate(self):
         deps = CMakeDeps(self)
@@ -154,7 +191,7 @@ class CuraEngineConan(ConanFile):
         tc.preprocessor_definitions["_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR"] = 1
 
         tc.variables["CURA_ENGINE_VERSION"] = self.version
-        tc.variables["CURA_ENGINE_HASH"] = self.conan_data["commit"]
+        tc.variables["CURA_ENGINE_HASH"] = self.conan_data.get("commit", "unknown") if self.conan_data else "unknown"
         tc.variables["ENABLE_ARCUS"] = self.options.enable_arcus
         tc.variables["ENABLE_TESTING"] = not self.conf.get("tools.build:skip_test", False, check_type=bool)
         tc.variables["ENABLE_BENCHMARKS"] = self.options.enable_benchmarks
@@ -232,5 +269,5 @@ class CuraEngineConan(ConanFile):
         self.conf_info.define_path("user.curaengine:curaengine",
                                    os.path.join(self.package_folder, "bin", f"CuraEngine{ext}"))
 
-        if self.settings.os == "Emscripten":
-            self.python_requires["npmpackage"].module.conf_package_json(self)
+        # if self.settings.os == "Emscripten":
+        #     self.python_requires["npmpackage"].module.conf_package_json(self)
