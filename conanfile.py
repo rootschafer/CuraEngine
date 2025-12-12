@@ -58,7 +58,7 @@ class CuraEngineConan(ConanFile, SentryLibrary):
         "with_cura_resources": [True, False],
     }
     default_options = {
-        "enable_arcus": True,
+        "enable_arcus": False,  # disable arcus to avoid protobuf version conflicts
         "enable_benchmarks": False,
         "enable_extensive_warnings": False,
         "enable_plugins": True,
@@ -163,8 +163,14 @@ class CuraEngineConan(ConanFile, SentryLibrary):
         
         if self.options.enable_plugins:
             self.requires("neargye-semver/0.3.0")
+            # Align to grpc 1.67.x / protobuf 5.27.x (asio-grpc 3.x pulls this stack)
+            self.requires("asio-grpc/3.5.0")
+            self.requires("grpc/1.67.1")
             if self.conan_data and "requirements_plugins" in self.conan_data:
                 for req in self.conan_data["requirements_plugins"]:
+                    # Skip older grpc defs if present; rely on explicit grpc above
+                    if req.startswith("grpc/") or req.startswith("curaengine_grpc_definitions/"):
+                        continue
                     self.requires(req)
         
         if self.options.with_cura_resources and self.conan_data and "requirements_cura_resources" in self.conan_data:
@@ -172,12 +178,14 @@ class CuraEngineConan(ConanFile, SentryLibrary):
                 self.requires(req)
         
         self.requires("clipper/6.4.2")
-        self.requires("boost/1.86.0")
+        self.requires("boost/1.88.0")
         self.requires("rapidjson/cci.20230929")
         self.requires("stb/cci.20230920")
         self.requires("spdlog/1.15.1")
         self.requires("fmt/11.1.3")
         self.requires("range-v3/0.12.0")
+        # bump protobuf to align with grpc 1.67.x
+        self.requires("protobuf/5.27.0")
         self.requires("zlib/1.3.1")
         self.requires("mapbox-wagyu/0.5.0")
         # Removed explicit standardprojectsettings from here
