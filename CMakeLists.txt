@@ -275,9 +275,7 @@ target_compile_definitions(_CuraEngine PRIVATE
         SENTRY_ENVIRONMENT=\"${SENTRY_ENVIRONMENT}\"
 )
 
-if (NOT WIN32)
-    add_executable(CuraEngine src/main.cpp) # Then compile main.cpp as separate executable, and link the library to it.
-else ()
+if (WIN32)
     message(STATUS "Using windres")
     set(RES_FILES "CuraEngine.rc")
     ENABLE_LANGUAGE(RC)
@@ -291,9 +289,11 @@ else ()
     if (ENABLE_SENTRY)
         set_target_properties(CuraEngine PROPERTIES LINK_FLAGS "/DEBUG:FULL")
     endif ()
-endif (NOT WIN32)
+elseif (NOT EMSCRIPTEN)
+    add_executable(CuraEngine src/main.cpp) # Then compile main.cpp as separate executable, and link the library to it.
+endif ()
 
-if (ENABLE_THREADING)
+if (ENABLE_THREADING AND NOT EMSCRIPTEN)
     use_threads(CuraEngine)
 endif ()
 
@@ -323,15 +323,17 @@ if (EMSCRIPTEN)
     )
 endif ()
 
-target_link_libraries(CuraEngine PRIVATE
-        _CuraEngine
-        $<$<TARGET_EXISTS:sentry::sentry>:sentry::sentry>
-)
-target_compile_definitions(CuraEngine PRIVATE
-        $<$<BOOL:${ENABLE_SENTRY}>:SENTRY_URL=\"${SENTRY_URL}\">
-        SENTRY_ENVIRONMENT=\"${SENTRY_ENVIRONMENT}\"
-        VERSION=\"${CURA_ENGINE_VERSION}\"
-)
+if (TARGET CuraEngine)
+    target_link_libraries(CuraEngine PRIVATE
+            _CuraEngine
+            $<$<TARGET_EXISTS:sentry::sentry>:sentry::sentry>
+    )
+    target_compile_definitions(CuraEngine PRIVATE
+            $<$<BOOL:${ENABLE_SENTRY}>:SENTRY_URL=\"${SENTRY_URL}\">
+            SENTRY_ENVIRONMENT=\"${SENTRY_ENVIRONMENT}\"
+            VERSION=\"${CURA_ENGINE_VERSION}\"
+    )
+endif ()
 
 # Compiling the test environment.
 if (ENABLE_TESTING OR ENABLE_BENCHMARKS)

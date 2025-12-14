@@ -21,7 +21,9 @@
 #include "Slice.h"
 #include "communication/ArcusCommunication.h" //To connect via Arcus to the front-end.
 #include "communication/CommandLine.h" //To use the command line to slice stuff.
+#if defined(__EMSCRIPTEN__) && !defined(CURA_ENGINE_EMBEDDED)
 #include "communication/EmscriptenCommunication.h" // To use Emscripten to slice stuff.
+#endif
 #include "progress/Progress.h"
 #include "utils/ThreadPool.h"
 #include "utils/string.h" //For stringcasecompare.
@@ -218,7 +220,7 @@ void Application::slice()
     {
         arguments.emplace_back(argv_[argument_index]);
     }
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) && !defined(CURA_ENGINE_EMBEDDED)
     communication_ = std::make_shared<EmscriptenCommunication>(arguments);
 #else
     communication_ = std::make_shared<CommandLine>(arguments);

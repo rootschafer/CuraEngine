@@ -1,7 +1,7 @@
 // Copyright (c) 2024 UltiMaker
 // CuraEngine is released under the terms of the AGPLv3 or higher
 
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) && !defined(CURA_ENGINE_EMBEDDED)
 #include "communication/EmscriptenCommunication.h"
 
 #include <emscripten.h>
@@ -155,4 +155,4 @@ void EmscriptenCommunication::sliceNext()
 
 } // namespace cura
 
-#endif // __EMSCRIPTEN__
+#endif // defined(__EMSCRIPTEN__) && !defined(CURA_ENGINE_EMBEDDED)

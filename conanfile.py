@@ -197,6 +197,11 @@ class CuraEngineConan(ConanFile, SentryLibrary):
         tc = CMakeToolchain(self)
 
         tc.preprocessor_definitions["_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR"] = 1
+        # When building for wasm/emscripten via Conan in this repo, we build a *static*
+        # archive intended for embedding into the Rust wasm module (via cxx).
+        # Disable CuraEngine's Emscripten runtime/JS-callback communication code paths.
+        if self.settings.os == "Emscripten":
+            tc.preprocessor_definitions["CURA_ENGINE_EMBEDDED"] = 1
 
         tc.variables["CURA_ENGINE_VERSION"] = self.version
         tc.variables["CURA_ENGINE_HASH"] = self.conan_data.get("commit", "unknown") if self.conan_data else "unknown"
@@ -207,6 +212,15 @@ class CuraEngineConan(ConanFile, SentryLibrary):
         tc.variables["OLDER_APPLE_CLANG"] = self.settings.compiler == "apple-clang" and Version(
             self.settings.compiler.version) < "14"
         tc.variables["ENABLE_THREADING"] = not (self.settings.arch == "wasm" and self.settings.os == "Emscripten")
+        # CMake's default compiler checks try to link an executable, which can trigger Emscripten
+        # to build/cache additional system libraries. In Nix environments this can fail due to
+        # path remapping. Building a static library does not require a full link step here.
+        if self.settings.os == "Emscripten":
+            # Ensure CMake understands this is an Emscripten build.
+            # (CuraEngine's CMakeLists uses `if(EMSCRIPTEN)` guards for native-only deps.)
+            tc.variables["CMAKE_SYSTEM_NAME"] = "Emscripten"
+            tc.variables["EMSCRIPTEN"] = "ON"
+            tc.variables["CMAKE_TRY_COMPILE_TARGET_TYPE"] = "STATIC_LIBRARY"
         if self.options.enable_plugins:
             tc.variables["ENABLE_PLUGINS"] = True
             tc.variables["ENABLE_REMOTE_PLUGINS"] = self.options.enable_remote_plugins
